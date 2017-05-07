@@ -1,0 +1,21 @@
+<div class="flexslider qor-slider">
+  <ul class="slides">
+    {{range $slideImage := .Setting.SlideImages}}
+      <li>
+        <div class="qor-slider__text"><p class="container">{{$slideImage.Title}}</p></div>
+        <img src="{{$slideImage.Image}}" />
+      </li>
+    {{end}}
+  </ul>
+</div>
+<link type="text/css" rel="stylesheet" href="/vendors/flexslider.css" />
+<script src="/vendors/jquery.flexslider-min.js"></script>
+<script>
+  $(function(){
+    $('.flexslider').flexslider({
+      animation: 'slide',
+      touch: true,
+      directionNav: false
+    });
+  })
+</script>
