@@ -11,10 +11,10 @@ import (
 
 type Order struct {
 	gorm.Model
-	UserID            uint
-	User              User
+	CustomerID        uint
+	Customer          Customer
 	PaymentAmount     float32
-	AbandonedReason   string
+	//AbandonedReason   string
 	DiscountValue     uint
 	TrackingNumber    *string
 	ShippedAt         *time.Time
@@ -33,7 +33,7 @@ type OrderItem struct {
 	SizeVariation   SizeVariation
 	Quantity        uint
 	Price           float32
-	DiscountRate    uint
+	//DiscountRate    uint
 	State           string
 	//transition.Transition
 }
@@ -50,14 +50,14 @@ func (o *Order) BeforeUpdate(tx *gorm.DB) (err error) {
 	if oldOrder.PaymentAmount != o.PaymentAmount {
 		changeAmount := o.PaymentAmount - oldOrder.PaymentAmount
 		agencyUser := new(Agency)
-		tx.Where("user_id = ?", o.UserID).First(agencyUser)
-		if agencyUser.UserID != 0 {
+		tx.Where("customer_id = ?", o.CustomerID).First(agencyUser)
+		if agencyUser.CustomerID != 0 {
 			affected := tx.Model(agencyUser).Where("balance >= ?", changeAmount).UpdateColumn("balance", gorm.Expr("balance - ?", changeAmount)).RowsAffected
 			if affected == 0 {
 				err = fmt.Errorf("代理余额 [%.2f] 小于更改变动金额[%.2f], 无法修改订单", agencyUser.Balance, changeAmount)
 			} else {
 				tx.Create(&AgencyLog{
-					UserID:        agencyUser.UserID,
+					CustomerID:    agencyUser.CustomerID,
 					AgencyBalance: agencyUser.Balance - o.PaymentAmount,
 					Opr:           AGENCY_OPR_ORDER[AGENCY_OPR_UPDATE_ORDER],
 					Desc:          fmt.Sprintf("更新订单 更新余额差值[%.2f]", changeAmount),
@@ -70,15 +70,15 @@ func (o *Order) BeforeUpdate(tx *gorm.DB) (err error) {
 
 func (o *Order) AfterCreate(tx *gorm.DB) (err error) {
 	agencyUser := new(Agency)
-	tx.Where("user_id = ?", o.UserID).First(agencyUser)
-	if agencyUser.UserID != 0 {
+	tx.Where("customer_id = ?", o.CustomerID).First(agencyUser)
+	if agencyUser.CustomerID != 0 {
 		affected := tx.Model(agencyUser).Where("balance >= ?", o.PaymentAmount).UpdateColumn("balance", gorm.Expr("balance - ?", o.PaymentAmount)).RowsAffected
 		if affected == 0 {
 			tx.Rollback()
 			err = fmt.Errorf("代理余额 [%.2f] 小于付款金额[%.2f], 无法生成订单", agencyUser.Balance, o.PaymentAmount)
 		} else {
 			tx.Create(&AgencyLog{
-				UserID:        agencyUser.UserID,
+				CustomerID:    agencyUser.CustomerID,
 				AgencyBalance: agencyUser.Balance - o.PaymentAmount,
 				Opr:           AGENCY_OPR_ORDER[AGENCY_OPR_CREATE_ORDER],
 				Desc:          fmt.Sprintf("新建订单 消费[%.2f]", o.PaymentAmount),
@@ -90,15 +90,15 @@ func (o *Order) AfterCreate(tx *gorm.DB) (err error) {
 
 func (o *Order) AfterDelete(tx *gorm.DB) (err error) {
 	agencyUser := new(Agency)
-	tx.Where("user_id = ?", o.UserID).First(agencyUser)
-	if agencyUser.UserID != 0 {
+	tx.Where("customer_id = ?", o.CustomerID).First(agencyUser)
+	if agencyUser.CustomerID != 0 {
 		affected := tx.Model(agencyUser).UpdateColumn("balance", gorm.Expr("balance + ?", o.PaymentAmount)).RowsAffected
 		if affected == 0 {
 			tx.Rollback()
 			err = fmt.Errorf("无法删除订单")
 		} else {
 			tx.Create(&AgencyLog{
-				UserID:        agencyUser.UserID,
+				CustomerID:    agencyUser.CustomerID,
 				AgencyBalance: agencyUser.Balance + o.PaymentAmount,
 				Opr:           AGENCY_OPR_ORDER[AGENCY_OPR_DELETE_ORDER],
 				Desc:          fmt.Sprintf("删除订单 返还余额[%.2f]", o.PaymentAmount),
@@ -131,7 +131,7 @@ func (oi *OrderItem) BeforeUpdate(tx *gorm.DB) (err error) {
 }
 
 func (item OrderItem) Amount() float32 {
-	return item.Price * float32(item.Quantity) * float32(100-item.DiscountRate) / 100
+	return item.Price * float32(item.Quantity) // * float32(100-item.DiscountRate) / 100
 }
 
 func (item OrderItem) SizeVariationInfo() {

@@ -14,9 +14,6 @@ type Category struct {
 	sorting.Sorting
 	Name string
 	Code string
-
-	Categories []Category
-	CategoryID uint
 }
 
 func (category Category) Validate(db *gorm.DB) {

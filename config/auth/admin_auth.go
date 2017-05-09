@@ -10,8 +10,14 @@ import (
 
 func init() {
 	roles.Register("admin", func(req *http.Request, currentUser interface{}) bool {
-		return currentUser != nil && currentUser.(*models.User).Role == "Admin"
+		return currentUser != nil && currentUser.(*models.User).Role == "管理员"
 	})
+	
+	roles.Register("user", func(req *http.Request, currentUser interface{}) bool {
+		return currentUser != nil && currentUser.(*models.User).Role == "用户"
+	})
+	
+	roles.Deny(roles.CRUD, "user")
 }
 
 type AdminAuth struct {

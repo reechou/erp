@@ -26,10 +26,10 @@ import (
 	"github.com/qor/notification"
 	"github.com/qor/notification/channels/database"
 	"github.com/qor/qor"
-	"github.com/reechou/erp/app/models"
-	"github.com/reechou/erp/config/admin"
-	adminseo "github.com/reechou/erp/config/seo"
-	"github.com/reechou/erp/db"
+	"github.com/qor/qor-example/app/models"
+	"github.com/qor/qor-example/config/admin"
+	adminseo "github.com/qor/qor-example/config/seo"
+	"github.com/qor/qor-example/db"
 	"github.com/qor/seo"
 	"github.com/qor/slug"
 	"github.com/qor/sorting"
@@ -50,7 +50,7 @@ var (
 	Notification = notification.New(&notification.Config{})
 	Tables       = []interface{}{
 		&models.User{}, &models.Address{},
-		&models.Category{}, &models.Color{}, &models.Size{}, &models.Collection{},
+		&models.Category{}, &models.Color{}, &models.Size{}, &models.Material{}, &models.Collection{},
 		&models.Product{}, &models.ProductImage{}, &models.ColorVariation{}, &models.SizeVariation{},
 		&models.Store{},
 		&models.Order{}, &models.OrderItem{},
@@ -84,32 +84,37 @@ func createRecords() {
 	createAdminUsers()
 	fmt.Println("--> Created admin users.")
 
-	//createUsers()
-	//fmt.Println("--> Created users.")
-	//createAddresses()
-	//fmt.Println("--> Created addresses.")
+	createUsers()
+	fmt.Println("--> Created users.")
+	createAddresses()
+	fmt.Println("--> Created addresses.")
 
-	//createCategories()
-	//fmt.Println("--> Created categories.")
-	//createCollections()
-	//fmt.Println("--> Created collections.")
-	//createColors()
-	//fmt.Println("--> Created colors.")
-	//createSizes()
-	//fmt.Println("--> Created sizes.")
-	//createProducts()
-	//fmt.Println("--> Created products.")
-	//createStores()
-	//fmt.Println("--> Created stores.")
-	//
-	//createOrders()
-	//fmt.Println("--> Created orders.")
-	//
-	//createWidgets()
-	//fmt.Println("--> Created widgets.")
-	//
-	//createArticles()
-	//fmt.Println("--> Created articles.")
+	createCategories()
+	fmt.Println("--> Created categories.")
+	createCollections()
+	fmt.Println("--> Created collections.")
+
+	createColors()
+	fmt.Println("--> Created colors.")
+	createSizes()
+	fmt.Println("--> Created sizes.")
+	createMaterial()
+	fmt.Println("--> Created material.")
+
+	createProducts()
+	fmt.Println("--> Created products.")
+
+	createStores()
+	fmt.Println("--> Created stores.")
+
+	createOrders()
+	fmt.Println("--> Created orders.")
+
+	createWidgets()
+	fmt.Println("--> Created widgets.")
+
+	createArticles()
+	fmt.Println("--> Created articles.")
 
 	createHelps()
 	fmt.Println("--> Created helps.")
@@ -179,7 +184,7 @@ func createSeo() {
 
 func createAdminUsers() {
 	AdminUser = &models.User{}
-	AdminUser.Email = "admin@bs.com"
+	AdminUser.Email = "dev@getqor.com"
 	AdminUser.Password = "$2a$10$a8AXd1q6J1lL.JQZfzXUY.pznG1tms8o.PK.tYD.Tkdfc3q7UrNX." // Password: testing
 	AdminUser.Confirmed = true
 	AdminUser.Name.Scan("QOR Admin")
@@ -278,6 +283,17 @@ func createSizes() {
 		size.Code = s.Code
 		if err := DraftDB.Create(&size).Error; err != nil {
 			log.Fatalf("create size (%v) failure, got err %v", size, err)
+		}
+	}
+}
+
+func createMaterial() {
+	for _, s := range Seeds.Materials {
+		material := models.Material{}
+		material.Name = s.Name
+		material.Code = s.Code
+		if err := DraftDB.Create(&material).Error; err != nil {
+			log.Fatalf("create material (%v) failure, got err %v", material, err)
 		}
 	}
 }
@@ -517,9 +533,11 @@ func createWidgets() {
 	type ImageStorage struct{ oss.OSS }
 	topBannerSetting := admin.QorWidgetSetting{}
 	topBannerSetting.Name = "TopBanner"
+	topBannerSetting.Description = "This is a top banner"
 	topBannerSetting.WidgetType = "NormalBanner"
 	topBannerSetting.GroupName = "Banner"
 	topBannerSetting.Scope = "from_google"
+	topBannerSetting.Shared = true
 	topBannerValue := &struct {
 		Title           string
 		ButtonTitle     string
@@ -584,6 +602,7 @@ func createWidgets() {
 	// Feature Product
 	featureProducts := admin.QorWidgetSetting{}
 	featureProducts.Name = "FeatureProducts"
+	featureProducts.Description = "featured product list"
 	featureProducts.WidgetType = "Products"
 	featureProducts.SetSerializableArgumentValue(&struct {
 		Products       []string

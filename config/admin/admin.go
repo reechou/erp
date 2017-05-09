@@ -113,9 +113,8 @@ func init() {
 	Admin.AddResource(&models.Size{}, &admin.Config{Menu: []string{"Product Management"}, Priority: -4})
 
 	category := Admin.AddResource(&models.Category{}, &admin.Config{Menu: []string{"Product Management"}, Priority: -3})
-	category.Meta(&admin.Meta{Name: "Categories", Type: "select_many"})
 
-	collection := Admin.AddResource(&models.Collection{}, &admin.Config{Menu: []string{"Product Management"}, Priority: -2})
+	Admin.AddResource(&models.Collection{}, &admin.Config{Menu: []string{"Product Management"}, Priority: -2})
 
 	// Add ProductImage as Media Libraray
 	ProductImagesResource := Admin.AddResource(&models.ProductImage{}, &admin.Config{Menu: []string{"Product Management"}, Priority: -1})
@@ -167,22 +166,17 @@ func init() {
 		return ""
 	}})
 
-	product.Filter(&admin.Filter{
-		Name:   "Collections",
-		Config: &admin.SelectOneConfig{RemoteDataResource: collection},
-	})
-
 	product.UseTheme("grid")
 
 	colorVariationMeta := product.Meta(&admin.Meta{Name: "ColorVariations"})
-	//colorVariationMeta.SetFormattedValuer(func(record interface{}, context *qor.Context) interface{} {
-	//	colorValue := colorVariationMeta.GetValuer()(record, context).([]models.ColorVariation)
-	//	var results []string
-	//	for _, v := range colorValue {
-	//		results = append(results, v.ColorCode)
-	//	}
-	//	return results
-	//})
+	colorVariationMeta.SetFormattedValuer(func(record interface{}, context *qor.Context) interface{} {
+		colorValue := colorVariationMeta.GetValuer()(record, context).([]models.ColorVariation)
+		var results []string
+		for _, v := range colorValue {
+			results = append(results, v.ColorSizeInfo())
+		}
+		return results
+	})
 	
 	colorVariation := colorVariationMeta.Resource
 	colorVariation.Meta(&admin.Meta{Name: "Images", Config: &media_library.MediaBoxConfig{
@@ -210,7 +204,7 @@ func init() {
 	sizeVariation.NewAttrs(sizeVariation.EditAttrs())
 
 	product.SearchAttrs("Name", "Code", "Category.Name", "Brand.Name")
-	product.IndexAttrs("MainImageURL", "Name", "Price")
+	product.IndexAttrs("MainImageURL", "Name", "Price", "ColorVariations")
 	product.EditAttrs(
 		//&admin.Section{
 		//	Title: "Seo Meta",
@@ -228,13 +222,18 @@ func init() {
 			Title: "Organization",
 			Rows: [][]string{
 				{"Category", "MadeCountry"},
-				{"Collections"},
+				//{"Collections"},
 			}},
-		"ProductProperties",
-		"Description",
+		//"ProductProperties",
+		//"Description",
 		"ColorVariations",
 	)
 	product.NewAttrs(product.EditAttrs())
+	
+	product.Filter(&admin.Filter{
+		Name:   "Category",
+		Config: &admin.SelectOneConfig{RemoteDataResource: category},
+	})
 
 	for _, country := range Countries {
 		var country = country
@@ -253,9 +252,77 @@ func init() {
 		},
 		Modes: []string{"menu_item", "edit"},
 	})
+	
+	// Add Customer
+	customer := Admin.AddResource(&models.Customer{}, &admin.Config{Menu: []string{"User Management"}, Priority: -2})
+	customer.IndexAttrs("ID", "Name", "Wechat", "Phone")
+	customer.ShowAttrs(
+		&admin.Section{
+			Title: "Basic Information",
+			Rows: [][]string{
+				{"Name"},
+				{"Wechat", "Phone"},
+			}},
+	)
+	customer.NewAttrs(customer.ShowAttrs())
+	customer.EditAttrs(customer.ShowAttrs())
+	
+	// Add User
+	user := Admin.AddResource(&models.User{}, &admin.Config{Menu: []string{"User Management"}, Priority: -1})
+	user.Meta(&admin.Meta{Name: "Gender", Config: &admin.SelectOneConfig{Collection: []string{"男", "女", "未知"}}})
+	user.Meta(&admin.Meta{Name: "Role", Config: &admin.SelectOneConfig{Collection: []string{ "用户", "管理员", "维护员"}}})
+	user.Meta(&admin.Meta{Name: "Password",
+		Type:            "password",
+		FormattedValuer: func(interface{}, *qor.Context) interface{} { return "" },
+		Setter: func(resource interface{}, metaValue *resource.MetaValue, context *qor.Context) {
+			values := metaValue.Value.([]string)
+			if len(values) > 0 {
+				if newPassword := values[0]; newPassword != "" {
+					bcryptPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+					if err != nil {
+						context.DB.AddError(validations.NewError(user, "Password", "Can't encrpt password"))
+						return
+					}
+					u := resource.(*models.User)
+					u.Password = string(bcryptPassword)
+				}
+			}
+		},
+	})
+	user.Meta(&admin.Meta{Name: "Confirmed", Valuer: func(user interface{}, ctx *qor.Context) interface{} {
+		if user.(*models.User).ID == 0 {
+			return true
+		}
+		return user.(*models.User).Confirmed
+	}})
+	
+	user.Filter(&admin.Filter{
+		Name: "Role",
+		Config: &admin.SelectOneConfig{
+			Collection: []string{"管理员", "维护员", "用户"},
+		},
+	})
+	
+	user.IndexAttrs("ID", "Email", "Name", "Gender", "Role")
+	user.ShowAttrs(
+		&admin.Section{
+			Title: "Basic Information",
+			Rows: [][]string{
+				{"Name"},
+				{"Email", "Password"},
+				{"Gender", "Role"},
+				{"Confirmed"},
+			}},
+		"Addresses",
+	)
+	user.EditAttrs(user.ShowAttrs())
 
 	// Add Order
 	order := Admin.AddResource(&models.Order{}, &admin.Config{Menu: []string{"Order Management"}})
+	//order.Meta(&admin.Meta{
+	//	Name:   "Customer",
+	//	Config: &admin.SelectOneConfig{SelectMode: "bottom_sheet", RemoteDataResource: customer},
+	//})
 	order.Meta(&admin.Meta{Name: "State", Config: &admin.SelectOneConfig{Collection: OrderStates}})
 	order.Meta(&admin.Meta{Name: "ShippingAddress", Type: "single_edit"})
 	order.Meta(&admin.Meta{Name: "ShippedAt", Type: "date"})
@@ -273,7 +340,7 @@ func init() {
 			db.Model(&v.SizeVariation).Related(&v.SizeVariation.Size)
 			db.Model(&v.SizeVariation.ColorVariation).Related(&v.SizeVariation.ColorVariation.Product)
 			db.Model(&v.SizeVariation.ColorVariation).Related(&v.SizeVariation.ColorVariation.Color)
-			results = append(results, fmt.Sprintf("[%s-%s-%s]", v.SizeVariation.ColorVariation.Product.Name, v.SizeVariation.ColorVariation.Color.Name, v.SizeVariation.Size.Name))
+			results = append(results, fmt.Sprintf("[%s#%s#%s#%d]", v.SizeVariation.ColorVariation.Product.Name, v.SizeVariation.ColorVariation.Color.Name, v.SizeVariation.Size.Name, v.Quantity))
 		}
 		return results
 	})
@@ -386,99 +453,20 @@ func init() {
 		Modes: []string{"index", "show", "menu_item"},
 	})
 
-	order.IndexAttrs("User", "PaymentAmount", "OrderItems", "TrackingNumber", "State", "ShippingAddress")
+	order.IndexAttrs("Customer", "PaymentAmount", "OrderItems", "TrackingNumber", "State", "ShippingAddress")
 	order.NewAttrs("-DiscountValue", "-AbandonedReason")
 	order.EditAttrs("-DiscountValue", "-AbandonedReason", "-State")
 	order.ShowAttrs("-DiscountValue", "-State")
-	order.SearchAttrs("User.Name", "User.Email", "ShippingAddress.ContactName", "ShippingAddress.Address1", "ShippingAddress.Address2")
+	order.SearchAttrs("Customer.Name", "Customer.Wechat", "ShippingAddress.ContactName", "ShippingAddress.Address1", "ShippingAddress.Address2")
 
 	// Add activity for order
 	activity.Register(order)
-
-	// Define another resource for same model
-	//abandonedOrder := Admin.AddResource(&models.Order{}, &admin.Config{Name: "Abandoned Order", Menu: []string{"Order Management"}})
-	//abandonedOrder.Meta(&admin.Meta{Name: "ShippingAddress", Type: "single_edit"})
-	//abandonedOrder.Meta(&admin.Meta{Name: "BillingAddress", Type: "single_edit"})
-	//
-	//// Define default scope for abandoned orders
-	//abandonedOrder.Scope(&admin.Scope{
-	//	Default: true,
-	//	Handle: func(db *gorm.DB, context *qor.Context) *gorm.DB {
-	//		return db.Where("abandoned_reason IS NOT NULL AND abandoned_reason <> ?", "")
-	//	},
-	//})
-	//
-	//// Define scopes for abandoned orders
-	//for _, amount := range []int{5000, 10000, 20000} {
-	//	var amount = amount
-	//	abandonedOrder.Scope(&admin.Scope{
-	//		Name:  fmt.Sprint(amount),
-	//		Group: "Amount Greater Than",
-	//		Handle: func(db *gorm.DB, context *qor.Context) *gorm.DB {
-	//			return db.Where("payment_amount > ?", amount)
-	//		},
-	//	})
-	//}
-	//
-	//abandonedOrder.IndexAttrs("-ShippingAddress", "-BillingAddress", "-DiscountValue", "-OrderItems")
-	//abandonedOrder.NewAttrs("-DiscountValue")
-	//abandonedOrder.EditAttrs("-DiscountValue")
-	//abandonedOrder.ShowAttrs("-DiscountValue")
-
-	// Add User
-	user := Admin.AddResource(&models.User{}, &admin.Config{Menu: []string{"User Management"}})
-	user.Meta(&admin.Meta{Name: "Gender", Config: &admin.SelectOneConfig{Collection: []string{"Male", "Female", "Unknown"}}})
-	user.Meta(&admin.Meta{Name: "Role", Config: &admin.SelectOneConfig{Collection: []string{"Admin", "Maintainer", "Member"}}})
-	user.Meta(&admin.Meta{Name: "Password",
-		Type:            "password",
-		FormattedValuer: func(interface{}, *qor.Context) interface{} { return "" },
-		Setter: func(resource interface{}, metaValue *resource.MetaValue, context *qor.Context) {
-			values := metaValue.Value.([]string)
-			if len(values) > 0 {
-				if newPassword := values[0]; newPassword != "" {
-					bcryptPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
-					if err != nil {
-						context.DB.AddError(validations.NewError(user, "Password", "Can't encrpt password"))
-						return
-					}
-					u := resource.(*models.User)
-					u.Password = string(bcryptPassword)
-				}
-			}
-		},
-	})
-	user.Meta(&admin.Meta{Name: "Confirmed", Valuer: func(user interface{}, ctx *qor.Context) interface{} {
-		if user.(*models.User).ID == 0 {
-			return true
-		}
-		return user.(*models.User).Confirmed
-	}})
-
-	user.Filter(&admin.Filter{
-		Name: "Role",
-		Config: &admin.SelectOneConfig{
-			Collection: []string{"Admin", "Maintainer", "Member"},
-		},
-	})
-
-	user.IndexAttrs("ID", "Email", "Name", "Gender", "Role")
-	user.ShowAttrs(
-		&admin.Section{
-			Title: "Basic Information",
-			Rows: [][]string{
-				{"Name"},
-				{"Email", "Password"},
-				{"Gender", "Role"},
-				{"Confirmed"},
-			}},
-		"Addresses",
-	)
-	user.EditAttrs(user.ShowAttrs())
 	
+	// add agency
 	agency := Admin.AddResource(&models.Agency{}, &admin.Config{Menu: []string{"Agency Management"}, Priority: -3})
 	agency.Meta(&admin.Meta{Name: "AgencyItem", Config: &admin.SelectOneConfig{Collection: agencyCollection}})
-	agency.IndexAttrs("User", "AgencyItem", "Balance")
-	agency.SearchAttrs("User.Name")
+	agency.IndexAttrs("Customer", "AgencyItem", "Balance")
+	agency.SearchAttrs("Customer.Name")
 	
 	agencyItem := Admin.AddResource(&models.AgencyItem{}, &admin.Config{Menu: []string{"Agency Management"}, Priority: -2})
 	agencyItem.Meta(&admin.Meta{Name: "Type", Config: &admin.SelectOneConfig{Collection: Agencies}})
@@ -490,7 +478,7 @@ func init() {
 			Collection: models.AGENCY_OPR_ORDER,
 		},
 	})
-	agencyLog.SearchAttrs("User.Name")
+	agencyLog.SearchAttrs("Customer.Name")
 
 	// Add Store
 	//store := Admin.AddResource(&models.Store{}, &admin.Config{Menu: []string{"Store Management"}})
@@ -520,7 +508,7 @@ func init() {
 	Admin.AddResource(&models.Setting{}, &admin.Config{Name: "Shop Setting", Singleton: true})
 
 	// Add Search Center Resources
-	Admin.AddSearchResource(product, user, order, agency)
+	Admin.AddSearchResource(product, customer, order, agency)
 
 	// Add ActionBar
 	ActionBar = action_bar.New(Admin)

@@ -36,7 +36,7 @@ func init() {
 	}
 
 	if err == nil {
-		//DB.LogMode(true)
+		DB.LogMode(true)
 		if os.Getenv("DEBUG") != "" {
 			DB.LogMode(true)
 		}

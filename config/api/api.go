@@ -26,4 +26,5 @@ func init() {
 
 	API.AddResource(&models.Order{})
 	API.AddResource(&models.User{})
+	API.AddResource(&models.Customer{})
 }

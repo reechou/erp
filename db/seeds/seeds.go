@@ -9,7 +9,7 @@ import (
 	"github.com/azumads/faker"
 	"github.com/jinzhu/configor"
 	"github.com/qor/publish2"
-	"github.com/reechou/erp/db"
+	"github.com/qor/qor-example/db"
 )
 
 var Fake *faker.Faker
@@ -30,6 +30,10 @@ var Seeds = struct {
 		Code string
 	}
 	Sizes []struct {
+		Name string
+		Code string
+	}
+	Materials []struct {
 		Name string
 		Code string
 	}

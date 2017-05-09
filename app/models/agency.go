@@ -11,8 +11,8 @@ import (
 
 type Agency struct {
 	gorm.Model
-	UserID       uint
-	User         User
+	CustomerID   uint
+	Customer     Customer
 	AgencyItemID uint
 	AgencyItem   AgencyItem
 	Balance      float32
@@ -37,8 +37,8 @@ var (
 
 type AgencyLog struct {
 	gorm.Model
-	UserID        uint
-	User          User
+	CustomerID    uint
+	Customer      Customer
 	AgencyBalance float32
 	Opr           string
 	Desc          string
